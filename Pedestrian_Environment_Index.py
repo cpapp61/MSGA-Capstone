@@ -197,23 +197,25 @@ def main():
     # Step 3: Calculating Commercial Density metric.
     # Step 3.1: Summarize joined table from step 1.1 to get area by commercial area by land use and census tract id.
     arcpy.AddMessage("Calculating Commercial Density metric...")
+    arcpy.SpatialJoin_analysis(land_use_file, geographical_units, land_use_geographical_units,
+                               match_option="LARGEST_OVERLAP")
     arcpy.SummarizeAttributes_gapro(land_use_geographical_units, summary_commercial, [land_uses, geographic_id_field],
                                     [[commercial_area, "SUM"]])
     # Step 3.2: Summarize joined table from step 1.2 to get area by census tract id alone.
     arcpy.SummarizeAttributes_gapro(land_use_geographical_units, summary_com_census_tract, [geographic_id_field],
-                                    [[geographic_area_field, "SUM"]])
+                                    [[land_use_area, "SUM"]])
     # Step 3.3: Join summary tables from steps 3.1 and 3.2. Needed to calculate land use proportion by census tract.
     commercial_joined_table = arcpy.AddJoin_management(summary_commercial, geographic_id_field, summary_com_census_tract,
                                                        geographic_id_field)
     # Table to table conversion is the only way to make the add join operations result permanent.
     arcpy.SelectLayerByAttribute_management(commercial_joined_table, "NEW_SELECTION", "summary_commercial.ct_id > 0")
     arcpy.TableToTable_conversion(commercial_joined_table, gdb, "commercial_summation",
-                                  fr"SUM_{geographic_area_field} IS NOT NULL")
+                                  fr"SUM_{land_use_area} IS NOT NULL")
     # Step 3.4: Calculating unnormalized commercial density metric.
     arcpy.AddField_management(commercial_summation, "bn_com_sum", "DOUBLE")
     # Calculating the commercial density without normalization.
     arcpy.CalculateField_management(commercial_summation, "bn_com_sum",
-                                    fr"!SUM_{commercial_area}!/!SUM_{geographic_area_field}!")
+                                    fr"!SUM_{commercial_area}!/!SUM_{land_use_area}!")
     arcpy.SummarizeAttributes_gapro(commercial_summation, final_commercial_sum, [geographic_id_field], [[fr"bn_com_sum", "SUM"]])
     max_value = 0.000000000000000001
     # Step 3.5: Max value normalization of commercial density metric field.
@@ -231,7 +233,7 @@ def main():
                 cur2.updateRow(row)
     # Normalizing commercial density field using maximum value normalization.
     arcpy.AddField_management(final_commercial_sum, "com_sum", "DOUBLE")
-    arcpy.CalculateField_management(final_commercial_sum, "com_sum", f"!SUM_bn_com_sum!/{max_value}")
+    arcpy.CalculateField_management(final_commercial_sum, "com_sum", f"math.log(!SUM_bn_com_sum!+1)/math.log({max_value}+1)")
     land_use_population_commercial_density_table = arcpy.AddJoin_management(PEI_step_2, geographic_id_field,
                                                                             final_commercial_sum,
                                                                             geographic_id_field,

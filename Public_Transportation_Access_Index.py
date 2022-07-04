@@ -82,6 +82,14 @@ def main():
     # Step 5: Summarize lines feature class from step 4 based on census tract ID to derive sum of ratios, which is the
     # final accessibility score.
     arcpy.SummarizeAttributes_gapro(ratio_transportation, transportation_accessibility, [geographic_id_field], [["ratio", "SUM"]])
+    arcpy.AddField_management(transportation_accessibility, "transportation_access", "DOUBLE")
+    max_value = 0
+    with arcpy.da.SearchCursor(transportation_accessibility, ["SUM_ratio"]) as cur:
+        for row in cur:
+            if row[0] is not None:
+                if row[0] > max_value:
+                    max_value = row[0]
+    arcpy.CalculateField_management(transportation_accessibility, "transportation_access", fr"!SUM_ratio!/{max_value}")
 
 
 if __name__ == '__main__':

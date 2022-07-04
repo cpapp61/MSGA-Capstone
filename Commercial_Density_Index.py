@@ -45,6 +45,7 @@ def main():
     summary_commercial = fr"{gdb}\summary_commercial"
     summary_com_census_tract = fr"{gdb}\summary_com_census_tract"
     commercial_summation = fr"{gdb}\commercial_summation"
+    final_commercial_sum = fr"{gdb}\final_commercial_sum"
     #
     # Step 1: Joining census tracts to land use polygons to have a single feature class with land use, tax lot areas and census tract ID's.
     #
@@ -64,22 +65,24 @@ def main():
     arcpy.AddField_management(commercial_summation, "bn_com_sum", "DOUBLE")
     # Calculating the commercial density without normalization.
     arcpy.CalculateField_management(commercial_summation, "bn_com_sum", fr"!SUM_{commercial_area}!/!SUM_{geographic_area_field}!")
+    arcpy.SummarizeAttributes_gapro(commercial_summation, final_commercial_sum, [geographic_id_field],
+                                    [[fr"bn_com_sum", "SUM"]])
     max_value = 0.00000001
     # Step 6: Max value normalization of commercial density metric field.
     # Searching for the highest commercial density in order to max normalize the commercial density field.
-    with arcpy.da.SearchCursor(commercial_summation, ["bn_com_sum"]) as cur:
+    with arcpy.da.SearchCursor(final_commercial_sum, ["SUM_bn_com_sum"]) as cur:
         for row in cur:
             if row[0] is not None:
                 if row[0] > max_value:
                     max_value = row[0]
-    where = "bn_com_sum IS NULL"
-    with arcpy.da.UpdateCursor(commercial_summation, ["bn_com_sum"], where) as cur2:
+    where = "SUM_bn_com_sum IS NULL"
+    with arcpy.da.UpdateCursor(final_commercial_sum, ["SUM_bn_com_sum"], where) as cur2:
         for row in cur2:
             row[0] = 0
             cur2.updateRow(row)
     # Normalizing commercial density field using maximum value normalization.
-    arcpy.AddField_management(commercial_summation, "com_sum", "DOUBLE")
-    arcpy.CalculateField_management(commercial_summation, "com_sum", f"!bn_com_sum!/{max_value}")
+    arcpy.AddField_management(final_commercial_sum, "com_sum", "DOUBLE")
+    arcpy.CalculateField_management(final_commercial_sum, "com_sum", f"math.log(!SUM_bn_com_sum!+1)/math.log({max_value}+1)")
 
 
 if __name__ == '__main__':
