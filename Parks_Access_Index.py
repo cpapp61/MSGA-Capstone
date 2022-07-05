@@ -56,7 +56,7 @@ def main():
         out_distance_raster = arcpy.sa.EucDistance(sidewalks, None, 10, None, "PLANAR", None, None)
         out_distance_raster.save(sidewalks_distance)
     # Step 2: Reclassify euclidean distance from sidewalks raster to create cost surface.
-    arcpy.Reclassify_3d(sidewalks_distance, "VALUE", "0 100 1;100 200 2;200 400 3;400 800 4;800 1600 5;1600 84892.132812 6", distance_reclass, "DATA")
+    arcpy.Reclassify_3d(sidewalks_distance, "VALUE", "0 1;0 30 2;30 60 3;60 100 4;100 24816.060547 5", distance_reclass, "DATA")
     # Step 3: Convert park polygons into points.
     arcpy.FeatureToPoint_management(parks, parks_FeatureToPoint)
     # Step 4: Select census tracts that intersect with park points.
@@ -67,14 +67,14 @@ def main():
     out_distance_raster.save(parks_raster)
     # Step 6: Calculate zonal statistics to obtain all the summary statistics of the cost distance raster from step 5 by census tract.
     arcpy.ia.ZonalStatisticsAsTable(geographical_units, "GEOID", parks_raster, parks_access, "DATA", "ALL", "CURRENT_SLICE", 90, "AUTO_DETECT")
-    min_value = 1000000
+    max_value = 0
     # Step 7: Calculate park access field and normalize it using max value normalization.
     with arcpy.da.SearchCursor(parks_access, ["MEDIAN"]) as cursor:
         for row in cursor:
-            if min_value > row[0]:
-                min_value = row[0]
+            if max_value < row[0]:
+                max_value = row[0]
     arcpy.AddField_management(parks_access, "park_access", "DOUBLE")
-    arcpy.CalculateField_management(parks_access, "park_access", fr"(1/!MEDIAN!)/(1/{min_value})")
+    arcpy.CalculateField_management(parks_access, "park_access", fr"abs(1-(!MEDIAN!/{max_value}))")
 
 
 if __name__ == '__main__':

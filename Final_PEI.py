@@ -442,9 +442,17 @@ def main():
     # final accessibility score.
     arcpy.SummarizeAttributes_gapro(ratio_transportation, transportation_accessibility, [geographic_id_field],
                                     [["ratio", "SUM"]])
+    arcpy.AddField_management(transportation_accessibility, "transportation_access", "DOUBLE")
+    max_value = 0
+    with arcpy.da.SearchCursor(transportation_accessibility, ["SUM_ratio"]) as cur:
+        for row in cur:
+            if row[0] is not None:
+                if row[0] > max_value:
+                    max_value = row[0]
+    arcpy.CalculateField_management(transportation_accessibility, "transportation_access", fr"!SUM_ratio!/{max_value}")
     transportation_accessibility = fr"{gdb}\transportation_accessibility"
     transportation_access = {}
-    with arcpy.da.SearchCursor(transportation_accessibility, ["ct_id", "SUM_ratio"]) as cursor:
+    with arcpy.da.SearchCursor(transportation_accessibility, ["ct_id", "transportation_access"]) as cursor:
         for row in cursor:
             transportation_access[row[0]] = row[1]
 
@@ -459,7 +467,7 @@ def main():
 
     # Step 7.2: Reclassify euclidean distance from sidewalks raster to create cost surface.
     arcpy.Reclassify_3d(sidewalks_distance, "VALUE",
-                        "0 100 1;100 200 2;200 400 3;400 800 4;800 1600 5;1600 84892.132812 6", distance_reclass,
+                        "0 1;0 30 2;30 60 3;60 100 4;100 24816.060547 5", distance_reclass,
                         "DATA")
 
     # Step 7.3: Convert park polygons into points.
@@ -480,15 +488,15 @@ def main():
     arcpy.CalculateField_management(parks_access, "br_ct_id", "!GEOID!")
     arcpy.AddField_management(parks_access, "ct_id", "DOUBLE")
     arcpy.CalculateField_management(parks_access, "ct_id", "round(!br_ct_id!,0)")
-    min_value = 1000000
+    max_value = 0
 
     # Step 7.7: Calculate park access field and normalize it using max value normalization.
     with arcpy.da.SearchCursor(parks_access, ["MEDIAN"]) as cursor:
         for row in cursor:
-            if min_value > row[0]:
-                min_value = row[0]
+            if max_value < row[0]:
+                max_value = row[0]
     arcpy.AddField_management(parks_access, "park_access", "DOUBLE")
-    arcpy.CalculateField_management(parks_access, "park_access", fr"(1/!MEDIAN!)/(1/{min_value})")
+    arcpy.CalculateField_management(parks_access, "park_access", fr"abs(1-(!MEDIAN!/{max_value}))")
     access_to_parks = {}
     with arcpy.da.SearchCursor(parks_access, ["ct_id", "park_access"]) as cursor:
         for row in cursor:

@@ -355,9 +355,17 @@ def main():
     # final accessibility score.
     arcpy.SummarizeAttributes_gapro(ratio_transportation, transportation_accessibility, [geographic_id_field],
                                     [["ratio", "SUM"]])
+    arcpy.AddField_management(transportation_accessibility, "transportation_access", "DOUBLE")
+    max_value = 0
+    with arcpy.da.SearchCursor(transportation_accessibility, ["SUM_ratio"]) as cur:
+        for row in cur:
+            if row[0] is not None:
+                if row[0] > max_value:
+                    max_value = row[0]
+    arcpy.CalculateField_management(transportation_accessibility, "transportation_access", fr"!SUM_ratio!/{max_value}")
 
     transportation_access = {}
-    with arcpy.da.SearchCursor(transportation_accessibility, ["ct_id", "SUM_ratio"]) as cursor:
+    with arcpy.da.SearchCursor(transportation_accessibility, ["ct_id", "transportation_access"]) as cursor:
         for row in cursor:
             transportation_access[row[0]] = row[1]
 
